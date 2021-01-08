@@ -4,7 +4,21 @@ metadata:
   name: runner
 spec:
   serviceAccountName: te
+  restartPolicy: Never
   containers:
     - name: runner
       imagePullPolicy: Never
+      # restartPolicy: Never
       image: runner:latest
+      env:
+        - name: MOUNT_PATH
+          value: "/Users/tahir/workspace/build-workspace/app1/"
+        - name: CLAIM_NAME
+          value: "task-pvc-volume"
+      volumeMounts:
+        - mountPath: /Users
+          name: hostpath-privileged
+  volumes:
+  - name: hostpath-privileged
+    persistentVolumeClaim:
+      claimName: task-pvc-volume    

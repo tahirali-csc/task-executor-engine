@@ -2,13 +2,14 @@ package kube
 
 import (
 	"context"
-	"github.com/tahirali-csc/task-executor-engine/engine"
 	"io"
+	"time"
+
+	"github.com/tahirali-csc/task-executor-engine/engine"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"time"
 )
 
 type kubeEngine struct {
@@ -30,24 +31,25 @@ func NewFile(url, path, node string) (engine.Engine, error) {
 }
 
 func (e *kubeEngine) Setup(ctx context.Context, spec *engine.Spec) error {
-	ns := toNamespace(spec)
+	// ns := toNamespace(spec)
 
 	// create the project namespace. all pods and
 	// containers are created within the namespace, and
 	// are removed when the pipeline execution completes.
-	_, err := e.client.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-	if err != nil {
-		return err
-	}
+	// _, err := e.client.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	// if err != nil {
+	// 	return err
+	// }
+	// var err error
 
-	// pv := toPersistentVolume(e.node, spec.Metadata.Namespace, spec.Metadata.Namespace, filepath.Join("/tmp", spec.Metadata.Namespace))
-	// _, err = e.client.CoreV1().PersistentVolumes().Create(pv)
+	// pv := toPersistentVolume(spec.Metadata.Namespace, spec.Metadata.Namespace, filepath.Join("/tmp", spec.Metadata.Namespace))
+	// _, err = e.client.CoreV1().PersistentVolumes().Create(ctx, pv, metav1.CreateOptions{})
 	// if err != nil {
 	// 	return err
 	// }
 
 	// pvc := toPersistentVolumeClaim(spec.Metadata.Namespace, spec.Metadata.Namespace)
-	// _, err = e.client.CoreV1().PersistentVolumeClaims(spec.Metadata.Namespace).Create(pvc)
+	// _, err = e.client.CoreV1().PersistentVolumeClaims(spec.Metadata.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
 	// if err != nil {
 	// 	return err
 	// }
@@ -164,11 +166,47 @@ func (e *kubeEngine) Wait(ctx context.Context, spec *engine.Spec) error {
 // helper function returns a kubernetes pod for the
 // given step and specification.
 func toPod(spec *engine.Spec) *v1.Pod {
-	//var volumes []v1.Volume
-	//volumes = append(volumes, toVolumes(spec, step)...)
-	//volumes = append(volumes, toConfigVolumes(spec, step)...)
-	//
-	//var mounts []v1.VolumeMount
+	var volumes []v1.Volume
+	var mounts []v1.VolumeMount
+
+	if len(spec.Volumes) > 0 {
+		for _, v := range spec.Volumes {
+			volumes = append(volumes, v1.Volume{
+				Name: v.Name,
+				VolumeSource: v1.VolumeSource{
+					PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+						ClaimName: v.ClaimName,
+					},
+				},
+			})
+
+			mounts = append(mounts, v1.VolumeMount{
+				MountPath: v.MountPath,
+				Name:      v.Name,
+			})
+		}
+	}
+
+	//persistentVolumeClaim:
+	// claimName: task-pvc-volume
+	// volumes = append(volumes, v1.Volume{
+	// 	// Name: "local-temp",
+	// 	Name: "hostpath-privileged",
+	// 	VolumeSource: v1.VolumeSource{
+	// 		PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+	// 			// ClaimName: spec.Metadata.Namespace,
+	// 			ClaimName: "task-pvc-volume",
+	// 		},
+	// 	},
+	// })
+	// //volumes = append(volumes, toVolumes(spec, step)...)
+	// //volumes = append(volumes, toConfigVolumes(spec, step)...)
+	// //
+	// var mounts []v1.VolumeMount
+	// mounts = append(mounts, v1.VolumeMount{
+	// 	MountPath: "/Users",
+	// 	Name:      "hostpath-privileged",
+	// })
 	//mounts = append(mounts, toVolumeMounts(spec, step)...)
 	//mounts = append(mounts, toConfigMounts(spec, step)...)
 	//
@@ -199,12 +237,12 @@ func toPod(spec *engine.Spec) *v1.Pod {
 				//	Privileged: &step.Docker.Privileged,
 				//},
 				//Env:          toEnv(spec, step),
-				//VolumeMounts: mounts,
+				VolumeMounts: mounts,
 				//Ports:        toPorts(step),
 				//Resources:    toResources(step),
 			}},
 			//ImagePullSecrets: pullSecrets,
-			//Volumes:          volumes,
+			Volumes: volumes,
 		},
 	}
 }
